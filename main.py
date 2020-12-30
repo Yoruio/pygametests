@@ -41,9 +41,11 @@ class Fps:
 
 
 def main():
+    print("enter main")
     white = (255, 255, 255)
     green = (0, 255, 0)
     blue = (0, 0, 128)
+    red = (255, 0, 0)
 
     background_colour = white
 
@@ -52,6 +54,7 @@ def main():
     sw, sh = pygame.display.get_surface().get_size()
     (cw, ch) = (sw, sh)
 
+    print("init pygame")
     pygame.init()
     pygame.display.set_caption('Object tracking')
     screen.fill(background_colour)
@@ -59,13 +62,22 @@ def main():
 
     comic_sans = pygame.font.Font('COMIC.TTF', 32)
 
+    print("init video capture")
     cap = cv2.VideoCapture(0)
-    cap.set(3, cw)
-    cap.set(4, ch)
+    print("set width")
+    cap.set(3, 1280)
+    print('set height')
+    cap.set(4, 720)
 
-    bb_pos = None
+    print("init misc variables")
+    # initial bounding box
     bb = None
     cursor_pos = None
+
+    # bounding box to draw around tracked object
+    bounding_box = None
+    prev_bounding_box = None
+    tracking_error = False
 
     fps_counter = Fps(True)
 
@@ -74,7 +86,7 @@ def main():
     OPENCV_OBJECT_TRACKERS = {
         "csrt": cv2.TrackerCSRT_create,  # good accuracy, bad failure report, slow
         "kcf": cv2.TrackerKCF_create,  # loses traction
-        "boosting": cv2.TrackerBoosting_create, # honestly horrible in every way
+        "boosting": cv2.TrackerBoosting_create,  # honestly horrible in every way
         "mil": cv2.TrackerMIL_create,  # also horrible in every way
         "tld": cv2.TrackerTLD_create,  # VERY good accuracy, long term but extremely slow
         "medianflow": cv2.TrackerMedianFlow_create,  # really good tracking but drifts
@@ -82,10 +94,11 @@ def main():
     }
     tracker = OPENCV_OBJECT_TRACKERS[tracker_type]()
 
+    frame_center = (cw/2, ch/2)
     try:
 
         while True:
-
+            print("start loop")
             ret, orig_frame = cap.read()
             orig_frame = cv2.resize(orig_frame, (sw, sh))
 
@@ -99,23 +112,60 @@ def main():
             fps_rect.topleft = (0, 0)
             screen.blit(fps_text, fps_rect)
 
+            print("draw cursor")
             # draw cursor
             if cursor_pos is not None:
                 pygame.draw.rect(screen, blue, cursor_pos + (50, 50), 3)
                 cursor_pos = None
 
+            print("draw bounding box")
             # draw bounding box
             if bb is not None:
                 (success, box) = tracker.update(orig_frame)
                 if success:
                     (x, y, w, h) = [int(v) for v in box]
-                    pygame.draw.rect(screen, green, (x, y, w, h), 3)
+                    prev_bounding_box = bounding_box
+                    bounding_box = (x, y, w, h)
                 else:
-                    fail_text = comic_sans.render('rip failed', True, green)
-                    fail_rect = fps_text.get_rect()
-                    fail_rect.topleft = (0, 50)
-                    screen.blit(fail_text, fail_rect)
-                    # tracker = OPENCV_OBJECT_TRACKERS["kcf"]()
+                    tracking_error = True
+
+            if bounding_box is not None:
+                if tracking_error:
+                    pygame.draw.rect(screen, green, bounding_box, 3)
+                else:
+                    pygame.draw.rect(screen, red, bounding_box, 3)
+
+            '''
+            # draw drive control
+            if (bounding_box is not None) and (not tracking_error):
+                box_center = (
+                    (bounding_box[0] + bounding_box[2] / 2),
+                    (bounding_box[1] + bounding_box[3] / 2)
+                )
+                prev_box_center = (
+                    (prev_bounding_box[0] + prev_bounding_box[2] / 2),
+                    (prev_bounding_box[1] + prev_bounding_box[3] / 2)
+                )
+                # Proportional
+                box_center = (
+                    (bounding_box[0] + bounding_box[2] / 2),
+                    (bounding_box[1] + bounding_box[3] / 2)
+                )
+                p = box_center[0] - frame_center[0]
+
+                # Derivative
+                d = prev_bounding_box[0] - bounding_box[0]
+
+                motor_control = p + 1/3 * d
+
+                # print motor text
+                motor_text = comic_sans.render('motor_control: %d' % motor_control, True, green)
+                motor_rect = fps_text.get_rect()
+                motor_rect.topleft = (0, 50)
+                screen.blit(motor_text, motor_rect)
+                '''
+
+
 
             pygame.display.update()
 
