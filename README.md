@@ -6,6 +6,7 @@ sudo apt install python3-opencv
 ```
 
 pygame -
+
 Build from source: [https://www.pygame.org/wiki/CompileUbuntu](https://www.pygame.org/wiki/CompileUbuntu)
 
 imutils -
